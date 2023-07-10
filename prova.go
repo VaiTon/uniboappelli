@@ -1,4 +1,4 @@
-package main
+package appelli
 
 import (
 	"fmt"
@@ -17,22 +17,22 @@ type Prova struct {
 	Materia  *Materia
 }
 
-// Creates a map from a slice of Prova.
-// The key is the string representation of the Prova.
-func proveHashMap(prove []Prova) map[string]Prova {
-	hashMap := make(map[string]Prova, len(prove))
-	for _, prova := range prove {
-		hashMap[prova.String()] = prova
-	}
-	return hashMap
-}
-
 func (p *Prova) String() string {
 	return fmt.Sprintf("%s %s %s %s", p.DataEOra, p.Tipo, p.Materia.Codice, p.Materia.Titolo)
 }
 
 // Implements sort.Interface for []Prova based on the DataEOra field.
 type Prove []Prova
+
+// Creates a map from a slice of Prova.
+// The key is the string representation of the Prova.
+func (p Prove) ToHashMap() map[string]Prova {
+	hashMap := make(map[string]Prova, len(p))
+	for _, prova := range p {
+		hashMap[prova.String()] = prova
+	}
+	return hashMap
+}
 
 func (p Prove) Len() int { return len(p) }
 func (p Prove) Less(i, j int) bool {

@@ -1,4 +1,4 @@
-package main
+package appelli
 
 import (
 	"fmt"
@@ -12,16 +12,16 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func getAppeliUrl(corso string) string {
+func GetAppeliUrl(corso string) string {
 	return fmt.Sprintf("https://corsi.unibo.it/laurea/%s/appelli", corso)
 }
 
-func getProve(corso string) ([]Prova, error) {
+func GetProve(corso string) ([]Prova, error) {
 	prove := make([]Prova, 0, 1)
 
 	bStart := 0
 	for {
-		url := getAppeliUrl(corso)
+		url := GetAppeliUrl(corso)
 		if bStart > 0 {
 			url = fmt.Sprintf("%s?b_start=%d", url, bStart)
 		}
@@ -67,25 +67,13 @@ func getProve(corso string) ([]Prova, error) {
 			appelli := panel.Find(".single-item")
 
 			for i := range appelli.Nodes {
-				s := appelli.Eq(i)
+				appello := appelli.Eq(i)
 
-				tds := s.Find("td")
-
-				tipoProva := strings.TrimSpace(tds.Eq(2).Text())
-
-				dataEOra := strings.TrimSpace(tds.Eq(0).Text())
-				dataEOra = strings.ReplaceAll(dataEOra, " ore ", " ")
-
-				locale, err := time.LoadLocation("Europe/Rome")
+				prova, err := parseProva(appello, materia)
 				if err != nil {
 					return nil, err
 				}
-				dataParsed, err := monday.ParseInLocation("02 January 2006 15:04", dataEOra, locale, monday.LocaleItIT)
-				if err != nil {
-					return nil, err
-				}
-
-				prove = append(prove, Prova{dataParsed, tipoProva, &materia})
+				prove = append(prove, prova)
 			}
 
 		}
@@ -95,4 +83,25 @@ func getProve(corso string) ([]Prova, error) {
 	}
 
 	return prove, nil
+}
+
+func parseProva(sel *goquery.Selection, materia Materia) (Prova, error) {
+	tds := sel.Find("td")
+
+	tipoProva := strings.TrimSpace(tds.Eq(2).Text())
+
+	dataEOra := strings.TrimSpace(tds.Eq(0).Text())
+	dataEOra = strings.ReplaceAll(dataEOra, " ore ", " ")
+
+	locale, err := time.LoadLocation("Europe/Rome")
+	if err != nil {
+		return Prova{}, err
+	}
+	dataParsed, err := monday.ParseInLocation("02 January 2006 15:04", dataEOra, locale, monday.LocaleItIT)
+	if err != nil {
+		return Prova{}, err
+	}
+
+	prova := Prova{dataParsed, tipoProva, &materia}
+	return prova, nil
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	appelli "github.com/VaiTon/uniboappelli"
 	"github.com/gorilla/feeds"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -37,7 +38,7 @@ func main() {
 func rssForCorso(corso string) {
 	log.Info().Str("corso", corso).Msg("generating rss")
 
-	prove, err := getProve(corso)
+	prove, err := appelli.GetProve(corso)
 
 	log.Info().Str("corso", corso).Int("nProve", len(prove)).Msg("got prove")
 
@@ -47,7 +48,7 @@ func rssForCorso(corso string) {
 	}
 
 	file, err := os.ReadFile("data.json")
-	oldProve := make([]Prova, 0, 10)
+	oldProve := make([]appelli.Prova, 0, 10)
 	if err != nil && !os.IsNotExist(err) {
 		log.Error().Msg("Could not read file")
 		os.Exit(1)
@@ -59,7 +60,7 @@ func rssForCorso(corso string) {
 		}
 	}
 
-	appelliUrl := getAppeliUrl(corso)
+	appelliUrl := appelli.GetAppeliUrl(corso)
 
 	feed := &feeds.Feed{
 		Title:       "Notifiche Appelli",
@@ -72,7 +73,7 @@ func rssForCorso(corso string) {
 	feed.Items = make([]*feeds.Item, 0, len(prove))
 
 	log.Debug().Msg("Sorting prove")
-	var proveSort Prove = prove
+	var proveSort appelli.Prove = prove
 	sort.Sort(sort.Reverse(proveSort))
 
 	for _, p := range proveSort {
@@ -86,6 +87,7 @@ func rssForCorso(corso string) {
 		feed.Items = append(feed.Items, &feeds.Item{
 			Title:       p.Materia.Titolo,
 			Link:        &feeds.Link{Href: appelliUrl},
+			Updated:     time.Now(),
 			Description: builder.String(),
 		})
 	}
@@ -110,12 +112,12 @@ func rssForCorso(corso string) {
 	}
 }
 
-func diffProve(new []Prova, old []Prova) []Prova {
-	diff := make([]Prova, 0, 1)
+func diffProve(new []appelli.Prova, old []appelli.Prova) []appelli.Prova {
+	diff := make([]appelli.Prova, 0, 1)
 
 	log.Debug().Int("new", len(new)).Int("old", len(old)).Msg("diffing prove")
 
-	oldMap := proveHashMap(old)
+	oldMap := appelli.Prove.ToHashMap(old)
 
 	for _, newProva := range new {
 		if _, ok := oldMap[newProva.String()]; !ok {
