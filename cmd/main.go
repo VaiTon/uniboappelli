@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"sort"
+	"path"
 	"strings"
 	"time"
 
@@ -13,117 +13,162 @@ import (
 	"github.com/gorilla/feeds"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/samber/lo"
 )
 
 func main() {
 
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-
-	debug := flag.Bool("debug", false, "sets log level to debug")
+	debugFlag := flag.Bool("debugFlag", false, "sets log level to debugFlag")
+	jsonFlag := flag.Bool("jsonFlag", false, "output jsonFlag to console instead of pretty printed text")
 	flag.Parse()
 
-	corsi := flag.Args()
-
-	if *debug {
+	// Set global log level to debugFlag or info
+	if *debugFlag {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	} else {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
 
-	for _, corso := range corsi {
-		rssForCorso(corso)
+	if !*jsonFlag {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	}
+
+	degrees := flag.Args()
+	if len(degrees) == 0 {
+		log.Fatal().Msg("No degrees specified")
+	}
+
+	for _, degree := range degrees {
+		log.Debug().Str("degree", degree).Msg("starting analysis")
+		doDegree(degree)
 	}
 }
 
-func rssForCorso(corso string) {
-	log.Info().Str("corso", corso).Msg("generating rss")
+func doDegree(degree string) {
+	logger := log.With().Str("degree", degree).Logger()
 
-	prove, err := appelli.GetProve(corso)
-
-	log.Info().Str("corso", corso).Int("nProve", len(prove)).Msg("got prove")
-
+	newExams, err := appelli.GetExams(degree)
 	if err != nil {
-		log.Err(err).Str("corso", corso).Msg("Could not get appelli url")
+		logger.Err(err).Msg("could not get exams")
 		return
 	}
+	logger.Info().Int("exams", len(newExams)).Msg("exams found")
 
-	file, err := os.ReadFile("data.json")
-	oldProve := make([]appelli.Prova, 0, 10)
+	// Create data directory if it does not exist
+
+	dataPath := "data"
+	err = os.MkdirAll(dataPath, 0755)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("could not create data directory")
+	}
+
+	dataFileName := fmt.Sprintf("%s.json", degree)
+	dataFileName = path.Join(dataPath, dataFileName)
+
+	dataFile, err := os.ReadFile(dataFileName)
+
+	oldProve := make(TimedExams, 0, 10)
+	// If dataFile does not exist, ignore error
 	if err != nil && !os.IsNotExist(err) {
-		log.Error().Msg("Could not read file")
-		os.Exit(1)
+		logger.Fatal().Err(err).Msg("Could not read dataFile")
 	} else if err == nil {
-		err = json.Unmarshal(file, &oldProve)
+		err = json.Unmarshal(dataFile, &oldProve)
 		if err != nil {
-			log.Error().Msg("Could not parse file")
-			os.Exit(1)
+			logger.Fatal().Msg("Could not parse dataFile")
 		}
 	}
 
-	appelliUrl := appelli.GetAppeliUrl(corso)
+	diff := appelli.Diff(newExams, oldProve.ToExams())
+	if len(diff) > 0 {
+		logger.Info().Int("exams", len(diff)).Msg("new exams found")
+	}
+
+	pageUrl := appelli.GetExamsUrl(degree)
 
 	feed := &feeds.Feed{
 		Title:       "Notifiche Appelli",
 		Description: "Notifiche Appelli",
 		Author:      &feeds.Author{Name: "Notifiche Appelli", Email: ""},
-		Link:        &feeds.Link{Href: appelliUrl},
+		Link:        &feeds.Link{Href: pageUrl},
 		Created:     time.Now(),
 	}
 
-	feed.Items = make([]*feeds.Item, 0, len(prove))
+	feed.Items = make([]*feeds.Item, 0, len(diff)+len(oldProve))
 
-	log.Debug().Msg("Sorting prove")
-	var proveSort appelli.Prove = prove
-	sort.Sort(sort.Reverse(proveSort))
+	// Add old exams to feed
+	feed.Items = append(feed.Items, examsToFeedItems(oldProve, pageUrl)...)
 
-	for _, p := range proveSort {
-		builder := strings.Builder{}
+	// Add new exams to feed
+	timedDiff := NewTimedExams(diff, time.Now())
+	feed.Items = append(feed.Items, examsToFeedItems(timedDiff, pageUrl)...)
 
-		builder.WriteString(fmt.Sprintf("Data: %s\n", p.DataEOra))
-		builder.WriteString(fmt.Sprintf("Tipo: %s\n", p.Tipo))
-		builder.WriteString(fmt.Sprintf("Docente: %s\n", p.Materia.Docente))
-		builder.WriteString(fmt.Sprintf("Materia: %s\n", p.Materia.Titolo))
-
-		feed.Items = append(feed.Items, &feeds.Item{
-			Title:       p.Materia.Titolo,
-			Link:        &feeds.Link{Href: appelliUrl},
-			Updated:     time.Now(),
-			Description: builder.String(),
-		})
+	if err = os.MkdirAll("rss", 0755); err != nil {
+		logger.Fatal().Err(err).Msg("could not create RSS folder")
 	}
 
-	if os.MkdirAll("rss", 0755) != nil {
-		log.Error().Msg("Could not create RSS folder")
-		os.Exit(1)
-	}
-
-	fileName := fmt.Sprintf("rss/%s.rss", corso)
+	fileName := fmt.Sprintf("rss/%s.rss", degree)
 	atomFile, err := os.Create(fileName)
 	if err != nil {
-		log.Error().Msg("Could not create RSS")
-		os.Exit(1)
+		logger.Fatal().Err(err).Msg("could not create RSS")
 	}
-	defer atomFile.Close()
 
 	err = feed.WriteAtom(atomFile)
 	if err != nil {
-		log.Error().Msg("Could not create RSS")
-		os.Exit(1)
+		logger.Fatal().Err(err).Msg("could not create RSS")
+	}
+	err = atomFile.Close()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("could not close dataFile")
+	}
+
+	oldProve = append(oldProve, timedDiff...)
+	proveJson, err := json.Marshal(oldProve)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Could not marshal newExams")
+	}
+
+	err = os.WriteFile(dataFileName, proveJson, 0644)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Could not write dataFile")
 	}
 }
 
-func diffProve(new []appelli.Prova, old []appelli.Prova) []appelli.Prova {
-	diff := make([]appelli.Prova, 0, 1)
+func examsToFeedItems(exams TimedExams, url string) []*feeds.Item {
+	items := make([]*feeds.Item, 0, len(exams))
+	for _, p := range exams {
+		b := strings.Builder{}
 
-	log.Debug().Int("new", len(new)).Int("old", len(old)).Msg("diffing prove")
+		b.WriteString(fmt.Sprintf("Data: %s\n", p.Updated))
+		b.WriteString(fmt.Sprintf("Type: %s\n", p.Exam.Type))
+		b.WriteString(fmt.Sprintf("Teacher: %s\n", p.Exam.Course.Teacher))
+		b.WriteString(fmt.Sprintf("Course: %s\n", p.Exam.Course.Title))
 
-	oldMap := appelli.Prove.ToHashMap(old)
-
-	for _, newProva := range new {
-		if _, ok := oldMap[newProva.String()]; !ok {
-			diff = append(diff, newProva)
-		}
+		items = append(items, &feeds.Item{
+			Title:       p.Exam.Course.Title,
+			Link:        &feeds.Link{Href: url},
+			Updated:     p.Updated,
+			Description: b.String(),
+		})
 	}
 
-	return diff
+	return items
+}
+
+type TimedExam struct {
+	Updated time.Time
+	Exam    appelli.Exam
+}
+
+type TimedExams []TimedExam
+
+func (t TimedExams) ToExams() appelli.Exams {
+	return lo.Map(t, func(p TimedExam, _ int) appelli.Exam {
+		return p.Exam
+	})
+}
+
+func NewTimedExams(exams appelli.Exams, time time.Time) TimedExams {
+	return lo.Map(exams, func(exam appelli.Exam, _ int) TimedExam {
+		return TimedExam{Updated: time, Exam: exam}
+	})
 }
