@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/PuerkitoBio/goquery v1.8.1
+	github.com/deckarep/golang-set/v2 v2.3.0
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible
 	github.com/goodsign/monday v1.0.1
 	github.com/gorilla/feeds v1.1.1

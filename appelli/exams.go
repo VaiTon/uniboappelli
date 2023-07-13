@@ -2,11 +2,13 @@ package appelli
 
 import (
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
-	"github.com/goodsign/monday"
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/PuerkitoBio/goquery"
+	set "github.com/deckarep/golang-set/v2"
+	"github.com/goodsign/monday"
 )
 
 const (
@@ -72,7 +74,7 @@ func GetExams(degree string) ([]Exam, error) {
 			for i := range examsSel.Nodes {
 				examSel := examsSel.Eq(i)
 
-				exam, err := parseExam(examSel, &course)
+				exam, err := parseExam(examSel, course)
 				if err != nil {
 					return nil, err
 				}
@@ -105,7 +107,7 @@ func parseCourse(tab *goquery.Selection) Course {
 	return Course{code, title, teacher}
 }
 
-func parseExam(sel *goquery.Selection, course *Course) (Exam, error) {
+func parseExam(sel *goquery.Selection, course Course) (Exam, error) {
 	tds := sel.Find("td")
 
 	examType := tds.Eq(2).Text()
@@ -126,13 +128,13 @@ func parseExam(sel *goquery.Selection, course *Course) (Exam, error) {
 	return Exam{dataParsed, examType, course}, nil
 }
 
-func Diff(new, old Exams) Exams {
-	oldMap := old.ToHashMap()
-	diff := make([]Exam, 0, 1)
-	for _, newExam := range new {
-		_, found := oldMap[newExam.String()]
-		if !found {
-			diff = append(diff, newExam)
+func Diff(new, old []Exam) Exams {
+	oldExamSet := set.NewSet(old...)
+
+	diff := make(Exams, 0, 10)
+	for _, exam := range new {
+		if !oldExamSet.Contains(exam) {
+			diff = append(diff, exam)
 		}
 	}
 
