@@ -16,7 +16,7 @@ type TimedExam struct {
 
 type TimedExams []TimedExam
 
-func NewTimedExams(exams appelli.Exams, time time.Time) TimedExams {
+func NewTimedExams(exams []appelli.Exam, time time.Time) TimedExams {
 	return lo.Map(exams, func(exam appelli.Exam, _ int) TimedExam {
 		return NewTimedExam(exam, time)
 	})
@@ -26,7 +26,7 @@ func NewTimedExam(exam appelli.Exam, time time.Time) TimedExam {
 	return TimedExam{Updated: time, Exam: exam}
 }
 
-func (e TimedExams) ToExams() appelli.Exams {
+func (e TimedExams) ToExams() []appelli.Exam {
 	return lo.Map(e, func(p TimedExam, _ int) appelli.Exam {
 		return p.Exam
 	})

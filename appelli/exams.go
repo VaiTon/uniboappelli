@@ -128,15 +128,14 @@ func parseExam(sel *goquery.Selection, course Course) (Exam, error) {
 	return Exam{dataParsed, examType, course}, nil
 }
 
-func Diff(new, old []Exam) Exams {
-	oldExamSet := set.NewSet(old...)
+func Diff(new, old []Exam) (diff []Exam) {
+	diff = make([]Exam, 0, 10)
 
-	diff := make(Exams, 0, 10)
+	oldExamSet := set.NewSet(old...)
 	for _, exam := range new {
 		if !oldExamSet.Contains(exam) {
 			diff = append(diff, exam)
 		}
 	}
-
-	return diff
+	return
 }
