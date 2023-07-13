@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	appelli "github.com/VaiTon/uniboappelli"
+	"github.com/VaiTon/uniboappelli/appelli"
 	"github.com/gorilla/feeds"
 	"github.com/samber/lo"
 	"strings"

@@ -5,12 +5,17 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/goodsign/monday"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
 const (
 	localeItIT = monday.LocaleItIT
 	examUrl    = "https://corsi.unibo.it/laurea/%s/appelli"
+)
+
+var (
+	space = regexp.MustCompile(`\s+`)
 )
 
 func GetExamsUrl(degree string) string {
@@ -67,7 +72,7 @@ func GetExams(degree string) ([]Exam, error) {
 			for i := range examsSel.Nodes {
 				examSel := examsSel.Eq(i)
 
-				exam, err := parseExam(examSel, course)
+				exam, err := parseExam(examSel, &course)
 				if err != nil {
 					return nil, err
 				}
@@ -83,30 +88,42 @@ func GetExams(degree string) ([]Exam, error) {
 
 func parseCourse(tab *goquery.Selection) Course {
 	code := tab.Find(".code").Text()
+	code = strings.TrimSpace(code)
+
 	teacher := tab.Find(".teacher").Text()
+	teacher = strings.ReplaceAll(teacher, "\n", "")
+	teacher = strings.TrimSpace(teacher)
+	teacher = strings.TrimSpace(teacher)
 
 	title := tab.Text()
 	title = strings.ReplaceAll(title, code, "")
 	title = strings.ReplaceAll(title, teacher, "")
+	title = strings.ReplaceAll(title, "\n", "")
+	title = space.ReplaceAllString(title, " ")
 	title = strings.TrimSpace(title)
 
 	return Course{code, title, teacher}
 }
 
-func parseExam(sel *goquery.Selection, course Course) (Exam, error) {
+func parseExam(sel *goquery.Selection, course *Course) (Exam, error) {
 	tds := sel.Find("td")
 
-	examType := strings.TrimSpace(tds.Eq(2).Text())
+	examType := tds.Eq(2).Text()
+	examType = strings.ReplaceAll(examType, "\n", "")
+	examType = strings.TrimSpace(examType)
+	examType = space.ReplaceAllString(examType, " ")
 
-	examTime := strings.TrimSpace(tds.Eq(0).Text())
+	examTime := tds.Eq(0).Text()
 	examTime = strings.ReplaceAll(examTime, " ore ", " ")
+	examTime = space.ReplaceAllString(examTime, " ")
+	examTime = strings.TrimSpace(examTime)
 
 	dataParsed, err := monday.Parse("02 January 2006 15:04", examTime, localeItIT)
 	if err != nil {
 		return Exam{}, err
 	}
 
-	return Exam{dataParsed, examType, &course}, nil
+	return Exam{dataParsed, examType, course}, nil
 }
 
 func Diff(new, old Exams) Exams {
