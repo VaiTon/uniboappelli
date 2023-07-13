@@ -25,4 +25,4 @@ jobs:
           go-version-file: 'go.mod'
 
       - name: Run
-        run: go run ./cmd IngegneriaInformatica informatica
+        run: go build
