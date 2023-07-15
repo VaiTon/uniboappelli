@@ -5,6 +5,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/VaiTon/uniboappelli/appelli"
@@ -112,7 +113,7 @@ func analyzeDegree(entry ConfigEntry) {
 		degreeLog.Fatal().Err(err).Msg("could not create data directory")
 	}
 
-	dataFileName := fmt.Sprintf("%s.json", degree)
+	dataFileName := fmt.Sprintf("%s.json", strings.Replace(degree, "/", "-", -1))
 	dataFileName = path.Join(dataPath, dataFileName)
 
 	// Read old exams from data file if it exists

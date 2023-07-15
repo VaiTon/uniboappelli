@@ -13,7 +13,7 @@ import (
 
 const (
 	localeItIT = monday.LocaleItIT
-	examUrl    = "https://corsi.unibo.it/laurea/%s/appelli"
+	examUrl    = "https://corsi.unibo.it/%s/appelli"
 )
 
 var (

@@ -5,6 +5,7 @@ import (
 	"github.com/gorilla/feeds"
 	"github.com/rs/zerolog"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -36,7 +37,8 @@ func createFeedFile(
 		degreeLog.Fatal().Err(err).Msg("could not create RSS folder")
 	}
 
-	fileName := fmt.Sprintf("rss/%s.rss", degree)
+	fileName := fmt.Sprintf("rss/%s.rss", strings.Replace(degree, "/", "-", -1))
+
 	atomFile, err := os.Create(fileName)
 	if err != nil {
 		degreeLog.Fatal().Err(err).Msg("could not create RSS")
